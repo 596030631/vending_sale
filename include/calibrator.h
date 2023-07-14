@@ -1,6 +1,8 @@
 #pragma once
 
 #include <opencv2/opencv.hpp>
+#include <NvInfer.h>
+
 class Calibrator : public nvinfer1::IInt8EntropyCalibrator2 {
 public:
 	Calibrator(int batchsize, int input_w, int input_h, std::string img_dir, const char* calib_table_name, bool read_cache = true);

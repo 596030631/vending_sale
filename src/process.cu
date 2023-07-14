@@ -91,23 +91,27 @@ void preprocess(
 }
 
 
-static float iou(float lbox[4], float rbox[4]) {
+static float iou(cv::Rect_<float> lbox, cv::Rect_<float> rbox) {
 	float interBox[] = {
-	  (std::max)(lbox[0] - lbox[2] / 2.f , rbox[0] - rbox[2] / 2.f), //left
-	  (std::min)(lbox[0] + lbox[2] / 2.f , rbox[0] + rbox[2] / 2.f), //right
-	  (std::max)(lbox[1] - lbox[3] / 2.f , rbox[1] - rbox[3] / 2.f), //top
-	  (std::min)(lbox[1] + lbox[3] / 2.f , rbox[1] + rbox[3] / 2.f), //bottom
+//	  (std::max)(lbox[0] - lbox[2] / 2.f , rbox[0] - rbox[2] / 2.f), //left
+	  (std::max)(lbox.x , rbox.x), //left
+//	  (std::min)(lbox[0] + lbox[2] / 2.f , rbox[0] + rbox[2] / 2.f), //right
+	  (std::min)(lbox.x + lbox.width , rbox.x + rbox.width), //right
+//	  (std::max)(lbox[1] - lbox[3] / 2.f , rbox[1] - rbox[3] / 2.f), //top
+	  (std::max)(lbox.y , rbox.y), //top
+//	  (std::min)(lbox[1] + lbox[3] / 2.f , rbox[1] + rbox[3] / 2.f), //bottom
+	  (std::min)(lbox.y + lbox.height , rbox.y + rbox.height), //bottom
 	};
 
 	if (interBox[2] > interBox[3] || interBox[0] > interBox[1])
 		return 0.0f;
 
 	float interBoxS = (interBox[1] - interBox[0]) * (interBox[3] - interBox[2]);
-	return interBoxS / (lbox[2] * lbox[3] + rbox[2] * rbox[3] - interBoxS);
+	return interBoxS / (lbox.width * lbox.height + rbox.width * rbox.height- interBoxS);
 }
 
 static bool cmp(const Detection& a, const Detection& b) {
-	return a.conf > b.conf;
+	return a.prob > b.prob;
 }
 
 
@@ -118,8 +122,8 @@ void NMS(std::vector<Detection>& res, float* output, const float& conf_thresh, c
 		if (output[1 + det_size * i + 4] <= conf_thresh) continue;
 		Detection det;
 		memcpy(&det, &output[1 + det_size * i], det_size * sizeof(float));
-		if (m.count(det.class_id) == 0) m.emplace(det.class_id, std::vector<Detection>());
-		m[det.class_id].push_back(det);
+		if (m.count(det.label) == 0) m.emplace(det.label, std::vector<Detection>());
+		m[det.label].push_back(det);
 	}
 	for (auto it = m.begin(); it != m.end(); it++) {
 		auto& dets = it->second;
@@ -128,7 +132,7 @@ void NMS(std::vector<Detection>& res, float* output, const float& conf_thresh, c
 			auto& item = dets[m];
 			res.push_back(item);
 			for (size_t n = m + 1; n < dets.size(); ++n) {
-				if (iou(item.bbox, dets[n].bbox) > nms_thresh) {
+				if (iou(item.rect, dets[n].rect) > nms_thresh) {
 					dets.erase(dets.begin() + n);
 					--n;
 				}
@@ -137,20 +141,19 @@ void NMS(std::vector<Detection>& res, float* output, const float& conf_thresh, c
 	}
 }
 
-cv::Rect getRect(cv::Mat& img, float bbox[4], float& scale) {
-	float l, r, t, b;
-	l = bbox[0] / scale;
-	t = bbox[1] / scale;
-	r = bbox[2] / scale;
-	b = bbox[3] / scale;
-	return cv::Rect(int(l), int(t), int(r - l), int(b - t));
+void getRect(cv::Mat& img, cv::Rect_<float>*bbox, float& scale) {
+	bbox->x /= scale;
+	bbox->y /= scale;
+	bbox->width /= scale;
+	bbox->height /= scale;
+//	return bbox;
 }
 
 void drawBbox(cv::Mat& img, std::vector<Detection>& res, float& scale, std::map<int, std::string>& Labels) {
 	for (size_t j = 0; j < res.size(); j++) {
-		cv::Rect r = getRect(img, res[j].bbox, scale);
-		std::string name = Labels[(int)res[j].class_id];
-		cv::rectangle(img, r, cv::Scalar(0xFF, 0xFF, 0), 2);
-		cv::putText(img, name, cv::Point(r.x, r.y - 1), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar(0xFF, 0xFF, 0), 2);
+//        getRect(img, res[j].rect, scale);
+        std::string name = Labels[(int)res[j].label];
+		cv::rectangle(img, res[j].rect, cv::Scalar(0xFF, 0xFF, 0), 1);
+		cv::putText(img, name, cv::Point(int(res[j].rect.x), int(res[j].rect.y - 1)), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar(0xFF, 0xFF, 0), 1);
 	}
 }

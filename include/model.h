@@ -1,7 +1,7 @@
 #pragma once
 #include "NvInfer.h"
 #include <string>
-#include <assert.h>
+#include <cassert>
 
 nvinfer1::IHostMemory* buildEngineYolov8n(const int& kBatchSize, nvinfer1::IBuilder* builder, 
 nvinfer1::IBuilderConfig* config, nvinfer1::DataType dt, const std::string& wts_path);

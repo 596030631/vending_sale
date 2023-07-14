@@ -158,12 +158,12 @@ namespace nvinfer1
         int row = idx / grid_w;
         int col = idx % grid_w;
 
-        det->conf = max_cls_prob;
-        det->class_id = class_id;
-        det->bbox[0] = (col + 0.5f - curInput[idx + 0 * total_grid]) * stride;
-        det->bbox[1] = (row + 0.5f - curInput[idx + 1 * total_grid]) * stride;
-        det->bbox[2] = (col + 0.5f + curInput[idx + 2 * total_grid]) * stride;
-        det->bbox[3] = (row + 0.5f + curInput[idx + 3 * total_grid]) * stride;
+        det->prob = max_cls_prob;
+        det->label = class_id;
+        det->rect.x = (col + 0.5f - curInput[idx + 0 * total_grid]) * stride;
+        det->rect.y = (row + 0.5f - curInput[idx + 1 * total_grid]) * stride;
+        det->rect.width = (col + 0.5f + curInput[idx + 2 * total_grid]) * stride - det->rect.x;
+        det->rect.height = (row + 0.5f + curInput[idx + 3 * total_grid]) * stride - det->rect.y;
     }
 
 

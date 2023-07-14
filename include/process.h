@@ -15,3 +15,5 @@ void preprocess(uint8_t* src, const int& src_width, const int& src_height,
 void NMS(std::vector<Detection>& res, float* output, const float& conf_thresh, const float& nms_thresh);
 
 void drawBbox(cv::Mat& img, std::vector<Detection>& res, float& scale, std::map<int, std::string>& Labels);
+
+void getRect(cv::Mat& img, cv::Rect_<float>*bbox, float& scale);
