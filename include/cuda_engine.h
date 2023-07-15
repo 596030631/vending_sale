@@ -19,7 +19,7 @@ class CUDA_ENGINE {
 
 private:
     static void serializeEngine(const int &_kBatchSize, const std::string &_wts_name, const std::string &_engine_name,
-                         const std::string &_sub_type);
+                                const std::string &_sub_type);
 
     void init_infer(const string &_engine_name, const string &_class_file);
 
@@ -28,7 +28,7 @@ public:
 
     ~CUDA_ENGINE();
 
-    do_interface();
+    void do_interface(vector<Detection> &res, const cv::Mat &image, float& scale);
 
     int kOutputSize;
     std::map<int, std::string> labels;

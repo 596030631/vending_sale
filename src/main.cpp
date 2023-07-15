@@ -46,31 +46,19 @@ void Inference(CUDA_ENGINE *cudaEngine, const string& video_path) {
 
     while (char(cv::waitKey(1) != 27) && videoCapture.isOpened() && videoCapture.read(image)) {
         auto t_beg = std::chrono::high_resolution_clock::now();
-        cout << 0<<endl;
         if (image.empty()) continue;
 
         num_frames++;
 
-        float scale = 640.00f / float(std::min(img_w, img_h));
-        int img_size = image.cols * image.rows * 3;
-        cudaMemcpyAsync(cudaEngine->image_device, image.data, img_size, cudaMemcpyHostToDevice, cudaEngine->stream);
-
-        preprocess(cudaEngine->image_device, image.cols, image.rows, cudaEngine->device_buffers[0], kInputW, kInputH, cudaEngine->stream, scale);
-
-        cudaEngine->context->enqueue(BATCH_SIZE, (void **) cudaEngine->device_buffers, cudaEngine->stream, nullptr);
-
-        cudaMemcpyAsync(cudaEngine->output_buffer_host, cudaEngine->device_buffers[1], BATCH_SIZE * cudaEngine->kOutputSize * sizeof(float),
-                        cudaMemcpyDeviceToHost, cudaEngine->stream);
-
-        cudaStreamSynchronize(cudaEngine->stream);
+        float scale = 1; // 后面推理会修改
 
         std::vector<Detection> res;
-        NMS(res,cudaEngine-> output_buffer_host, kConfThresh, kNmsThresh);
+
+        cudaEngine->do_interface(res, image, scale);
 
         for (int i = 0; i < res.size(); ++i) {
             getRect(image, &res[i].rect, scale);
         }
-        cout << 5<<endl;
         vector<STrack> output_stracks = tracker.update(res);
 
         cv::line(image, point_begin, point_end, Scalar_<float>(0, 0, 255), 1, LINE_AA, 0);

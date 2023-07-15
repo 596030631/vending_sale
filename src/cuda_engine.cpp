@@ -3,6 +3,7 @@
 //
 
 #include "cuda_engine.h"
+#include "process.h"
 
 //using namespace std;
 
@@ -83,8 +84,15 @@ void CUDA_ENGINE::init_infer(const string &_engine_name, const string &_class_fi
     readClassFile(_class_file, this->labels);
 }
 
-void CUDA_ENGINE::do_interface() {
+void CUDA_ENGINE::do_interface(vector<Detection> &res, const cv::Mat &image, float& scale) {
+    int img_size = image.cols * image.rows * 3;
+    cudaMemcpyAsync(this->image_device, image.data, img_size, cudaMemcpyHostToDevice, this->stream);
+    preprocess(this->image_device, image.cols, image.rows, this->device_buffers[0], kInputW, kInputH, this->stream,
+               scale);
+    this->context->enqueue(BATCH_SIZE, (void **) this->device_buffers, this->stream, nullptr);
+    cudaMemcpyAsync(this->output_buffer_host, this->device_buffers[1], BATCH_SIZE * this->kOutputSize * sizeof(float),
+                    cudaMemcpyDeviceToHost, this->stream);
+    cudaStreamSynchronize(this->stream);
 
-
-
+    NMS(res, this->output_buffer_host, kConfThresh, kNmsThresh);
 }

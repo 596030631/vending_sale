@@ -117,15 +117,15 @@ static bool cmp(const Detection& a, const Detection& b) {
 
 void NMS(std::vector<Detection>& res, float* output, const float& conf_thresh, const float& nms_thresh) {
 	int det_size = sizeof(Detection) / sizeof(float);
-	std::map<float, std::vector<Detection>> m;
+	std::map<float, std::vector<Detection>> map_det;
 	for (int i = 0; i < output[0]; i++) {
 		if (output[1 + det_size * i + 4] <= conf_thresh) continue;
 		Detection det;
 		memcpy(&det, &output[1 + det_size * i], det_size * sizeof(float));
-		if (m.count(det.label) == 0) m.emplace(det.label, std::vector<Detection>());
-		m[det.label].push_back(det);
+		if (map_det.count(det.label) == 0) map_det.emplace(det.label, std::vector<Detection>());
+		map_det[det.label].push_back(det);
 	}
-	for (auto it = m.begin(); it != m.end(); it++) {
+	for (auto it = map_det.begin(); it != map_det.end(); it++) {
 		auto& dets = it->second;
 		std::sort(dets.begin(), dets.end(), cmp);
 		for (size_t m = 0; m < dets.size(); ++m) {
