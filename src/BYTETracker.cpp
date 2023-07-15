@@ -8,7 +8,6 @@ BYTETracker::BYTETracker(int frame_rate, int track_buffer, int _frame_count) {
     frame_count = _frame_count;
     frame_id = 0;
     max_time_lost = int(frame_rate / 30.0 * track_buffer);
-    cout << "Init ByteTrack!" << endl;
 }
 
 BYTETracker::~BYTETracker() {
