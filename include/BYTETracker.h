@@ -27,6 +27,8 @@ private:
 
     vector<STrack> sub_stracks(vector<STrack> &tlista, vector<STrack> &tlistb);
 
+    void BYTETracker::pop_target();
+
     void remove_duplicate_stracks(vector<STrack> &resa, vector<STrack> &resb, vector<STrack> &stracksa,
                                   vector<STrack> &stracksb);
 
@@ -57,6 +59,5 @@ private:
     vector<STrack> lost_stracks;
     vector<STrack> removed_stracks;
     byte_kalman::KalmanFilter kalman_filter;
-    std::set<int> lossIds;
-
+    vector<STrack> record_all_tracked;
 };

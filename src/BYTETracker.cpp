@@ -30,10 +30,11 @@ vector<STrack> BYTETracker::update(const vector<Detection> &objects) {
     vector<STrack> output_stracks;
 
     vector<STrack *> unconfirmed;
-    vector<STrack *> tracked_stracks;
+    vector<STrack *> tracked_stacks;
     vector<STrack *> strack_pool;
     vector<STrack *> r_tracked_stracks;
 
+    // 将最新的标注信息输入
     if (objects.size() > 0) {
         for (int i = 0; i < objects.size(); i++) {
             vector<float> tlbr_;
@@ -49,23 +50,26 @@ vector<STrack> BYTETracker::update(const vector<Detection> &objects) {
             if (score >= track_thresh) {
                 detections.push_back(strack);
             } else {
-                cout << "low_score:" << score << endl;
                 detections_low.push_back(strack);
             }
 
         }
     }
 
-    // Add newly detected tracklets to tracked_stracks
+    // detections中包含高分标注，detections_low保存最新的低分标注
+    // Add newly detected tracklets to tracked_stacks
     for (int i = 0; i < this->tracked_stracks.size(); i++) {
-        if (!this->tracked_stracks[i].is_activated)
+        if (!this->tracked_stracks[i].is_activated) {
+            // 首次调用update时，全部将加入到此数组
             unconfirmed.push_back(&this->tracked_stracks[i]);
-        else
-            tracked_stracks.push_back(&this->tracked_stracks[i]);
+        } else {
+            tracked_stacks.push_back(&this->tracked_stracks[i]);
+        }
     }
 
+
     ////////////////// Step 2: First association, with IoU //////////////////
-    strack_pool = joint_stracks(tracked_stracks, this->lost_stracks);
+    strack_pool = joint_stracks(tracked_stacks, this->lost_stracks);
     STrack::multi_predict(strack_pool, this->kalman_filter);
 
     vector<vector<float> > dists;
@@ -85,7 +89,6 @@ vector<STrack> BYTETracker::update(const vector<Detection> &objects) {
         } else {
             track->re_activate(*det, this->frame_id, false);
             refind_stracks.push_back(*track);
-            cout << "refind:"<<track->track_id << endl;
         }
     }
 
@@ -165,40 +168,9 @@ vector<STrack> BYTETracker::update(const vector<Detection> &objects) {
 
     ////////////////// Step 5: Update state //////////////////
     for (int i = 0; i < this->lost_stracks.size(); i++) {
-        if (this->lossIds.count(this->lost_stracks[i].track_id)) {
-            std::cout << "exist:" << this->lost_stracks[i].track_id << endl;
-            continue;
-        }
-
-        if (this->frame_id - this->lost_stracks[i].end_frame() > this->max_time_lost || this->frame_id >= this->frame_count-1) {
-            this->lossIds.insert(this->lost_stracks[i].track_id);
-//            std::cout << "lost=" << this->lost_stracks[i].track_id << std::endl;
+        if (this->frame_id - this->lost_stracks[i].end_frame() > this->max_time_lost) {
             this->lost_stracks[i].mark_removed();
             removed_stracks.push_back(this->lost_stracks[i]);
-
-            // 用下角的点，判断商品拿取,右开门肯定是左下，左开门肯定是右下，取两者最小值能最大限度地判断商品出界
-            float xr = this->lost_stracks[i].tlwh[0] + this->lost_stracks[i].tlwh[2];
-            float xl = this->lost_stracks[i].tlwh[0] + this->lost_stracks[i].tlwh[2];
-            float yb = this->lost_stracks[i].tlwh[1] + this->lost_stracks[i].tlwh[3];
-
-            float yt_first = this->lost_stracks[i].begin_tlwh[1]; // 取初始位置最上方Y做判断条件
-
-            yb = -yb;
-            yt_first = -yt_first;
-            // 两点式求直线, 注意这里对Y轴做了对称，由于数学坐标和YOLO图像坐标X同Y取反
-            float yxl = (xl - point_begin.x) / (point_begin.x - point_end.x) * (-point_begin.y + point_end.y) -
-                        point_begin.y;
-            float yxr = (xr - point_begin.x) / (point_begin.x - point_end.x) * (-point_begin.y + point_end.y) -
-                        point_begin.y;
-            vector<float> tlbr = this->lost_stracks[i].tlwh;
-            vector<float> be_tlbr = this->lost_stracks[i].begin_tlwh;
-            std::cout << "loss point lineY=" << std::min(yxl, yxr) << " act=" << yb << tlbr[0] << "\t" << tlbr[1] << "\t" << tlbr[2]
-                      << "\t" << tlbr[3] << "\tbegin_y="<< yt_first << std::endl;
-            if (yb < std::min(yxl, yxr) && yt_first > std::min(yxr, yxl)) {
-                std::cout << "you loss:" << this->lost_stracks[i].track_id << std::endl;
-            } else{
-                std::cout << "no rule:" << this->lost_stracks[i].track_id << endl;
-            }
         }
     }
 
@@ -212,8 +184,6 @@ vector<STrack> BYTETracker::update(const vector<Detection> &objects) {
 
     this->tracked_stracks = joint_stracks(this->tracked_stracks, activated_stracks);
     this->tracked_stracks = joint_stracks(this->tracked_stracks, refind_stracks);
-
-    //std::cout << activated_stracks.size() << std::endl;
 
     this->lost_stracks = sub_stracks(this->lost_stracks, this->tracked_stracks);
     for (int i = 0; i < lost_stracks.size(); i++) {
@@ -232,15 +202,71 @@ vector<STrack> BYTETracker::update(const vector<Detection> &objects) {
     this->lost_stracks.clear();
     this->lost_stracks.assign(resb.begin(), resb.end());
 
+    if (this->frame_id >= this->frame_count) {
+        pop_target();
+    }
+
     for (int i = 0; i < this->tracked_stracks.size(); i++) {
-//        std::cout << "activate:" << this->tracked_stracks[i].track_id <<std::endl;
         if (this->tracked_stracks[i].is_activated) {
             output_stracks.push_back(this->tracked_stracks[i]);
+            this->record_all_tracked.push_back(this->tracked_stracks[i]);
+        }
+    }
+    return output_stracks;
+}
+
+void BYTETracker::pop_target() {
+    map<int, STrack*> min_bbox;
+    map<int, STrack*> max_bbox;
+    for (int i = 0; i < this->record_all_tracked.size(); ++i) {
+        const int l = this->record_all_tracked[i].track_id;
+        if (!min_bbox.count(l)) {
+            min_bbox[l]=&this->record_all_tracked[i];
+        } else {
+            bool b = this->record_all_tracked[i].frame_id < min_bbox.find(l)->second->frame_id;
+            if (b) {
+                STrack sTrack = this->record_all_tracked[i];
+                min_bbox[l]= &sTrack;
+            }
+        }
+        if (!max_bbox.count(l)) {
+            max_bbox[l]=&this->record_all_tracked[i];
+        } else {
+            bool b = this->record_all_tracked[i].frame_id > max_bbox.find(l)->second->frame_id;
+            if (b) {
+                max_bbox[l] = &this->record_all_tracked[i];
+            }
         }
     }
 
+    for (auto p: max_bbox) {
+        // 用下角的点，判断商品拿取,右开门肯定是左下，左开门肯定是右下，取两者最小值能最大限度地判断商品出界
+        STrack *st_end = p.second;
+        STrack *st_begin = min_bbox.find(p.first)->second;
+        float xr = st_end->tlwh[0] + st_end->tlwh[2];
+        float xl = st_end->tlwh[0] + st_end->tlwh[2];
+        float yb = st_end->tlwh[1] + st_end->tlwh[3];
 
-    return output_stracks;
+        float yt_first = st_begin->tlwh[1]; // 取初始位置最上方Y做判断条件
+
+        yb = -yb;
+        yt_first = -yt_first;
+        // 两点式求直线, 注意这里对Y轴做了对称，由于数学坐标和YOLO图像坐标X同Y取反
+        float yxl = (xl - point_begin.x) / (point_begin.x - point_end.x) * (-point_begin.y + point_end.y) -
+                    point_begin.y;
+        float yxr = (xr - point_begin.x) / (point_begin.x - point_end.x) * (-point_begin.y + point_end.y) -
+                    point_begin.y;
+        vector<float> tlbr = st_end->tlwh;
+        vector<float> be_tlbr = st_begin->tlwh;
+//        std::cout << "loss point lineY=" << std::min(yxl, yxr) << " act=" << yb << tlbr[0] << "\t" << tlbr[1] << "\t"
+//                  << tlbr[2]
+//                  << "\t" << tlbr[3] << "\tbegin_y=" << yt_first << "\tminiY=" << std::min(yxr, yxl) << std::endl;
+        if (yb < std::min(yxl, yxr) && yt_first > std::min(yxr, yxl)) {
+            std::cout << "you loss:" << st_end->track_id << std::endl;
+        } else {
+            std::cout << "no rule:" << st_end->track_id << endl;
+        }
+    }
 }
 
 
