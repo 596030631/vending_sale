@@ -45,22 +45,14 @@ void Inference(CUDA_ENGINE *cudaEngine, const string &video_path) {
     // 追踪结果集
     vector<STrack> output_stracks;
 
-    while (char(cv::waitKey(25) != 27) && videoCapture.isOpened()) {
+    while (char(cv::waitKey(25) != 27) && videoCapture.isOpened() && videoCapture.read(image)) {
         auto t_beg = std::chrono::high_resolution_clock::now();
-
-        if (!videoCapture.read(image)) {
-            for (int i = 0; i < output_stracks.size(); ++i) {
-                cout << "最后一帧依旧保留追踪的信息:" << output_stracks[i].track_id << endl;
-            }
-            break;
-        }
 
         output_stracks.clear(); // 每次清空
 
         if (image.empty()) continue;
 
         num_frames++;
-
 
         float scale = 1; // 后面推理会修改
 
@@ -76,43 +68,36 @@ void Inference(CUDA_ENGINE *cudaEngine, const string &video_path) {
 
         cv::line(image, point_begin, point_end, Scalar_<float>(0, 0, 255), 1, LINE_AA, 0);
 
-
         for (int i = 0; i < output_stracks.size(); i++) {
             vector<float> tlwh = output_stracks[i].tlwh;
             if (tlwh[2] * tlwh[3] > 20 /*&& !vertical*/) {
                 Scalar s = tracker.get_color(output_stracks[i].track_id);
-                putText(image, format("%d", output_stracks[i].track_id), Point(tlwh[0], tlwh[1] - 5),
-                        0, 0.6, s, 1, LINE_AA);
-//                    rectangle(img, Rect(tlwh[0], tlwh[1], tlwh[2], tlwh[3]), s, 2);
+//                putText(image, format("%d %s", output_stracks[i].track_id, cudaEngine->labels[output_stracks[i].label_id]), Point(tlwh[0], tlwh[1] - 5),
+//                        0, 0.6, s, 1, LINE_AA);
+                int label_id = output_stracks[i].label_id;
+                std::string label = cudaEngine->labels[label_id];
+                std::string text = format("%d", output_stracks[i].track_id) + label;
+                cv::Rect rect;
+                rect.x = output_stracks[i].tlwh[0];
+                rect.y = output_stracks[i].tlwh[1];
+                rect.width = output_stracks[i].tlwh[2];
+                rect.height = output_stracks[i].tlwh[3];
+                drawBboxMsg(image, rect, text);
 
+//                    rectangle(img, Rect(tlwh[0], tlwh[1], tlwh[2], tlwh[3]), s, 2);
 //                float x = (2.0f * tlwh[0] + tlwh[2]) / 2.0f;
 //                float y = (2.0f * tlwh[1] + tlwh[3]) / 2.0f;
-//
 //                cout << "id=" << output_stracks[i].track_id << "\ttlwh=" << tlwh[0] << " " << tlwh[1] << " " << tlwh[2]
 //                     << " " << tlwh[3] << "center=(" << x << "," << y << ") tracked_len="
 //                     << output_stracks[i].tracklet_len << endl;
-
-
-
-
 //                cout << "out_size" <<  << endl;
             }
         }
-
-        drawBbox(image, res, scale, cudaEngine->labels);
-
+//        drawBbox(image, res, cudaEngine->labels);
         cv::imshow("Inference", image);
         auto t_end = std::chrono::high_resolution_clock::now();
         float total_inf = std::chrono::duration<float, std::milli>(t_end - t_beg).count();
         total_ms += int(total_inf);
-//        cout << "Inference time: " << int(total_inf) << " count=" << res.size() << std::endl;
-//        cout << "FPS: " << num_frames * 1000 / total_ms << endl;
-
-
-//            putText(img, format("frame: %d fps: %d num: %d", num_frames, num_frames * 1000000 / total_ms, output_stracks.size()),
-//                    Point(0, 30), 0, 0.6, Scalar(0, 0, 255), 2, LINE_AA);
-//            writer.write(img);
-
     }
 
 
