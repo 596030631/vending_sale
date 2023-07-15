@@ -49,6 +49,7 @@ vector<STrack> BYTETracker::update(const vector<Detection> &objects) {
             if (score >= track_thresh) {
                 detections.push_back(strack);
             } else {
+                cout << "low_score:" << score << endl;
                 detections_low.push_back(strack);
             }
 
@@ -84,6 +85,7 @@ vector<STrack> BYTETracker::update(const vector<Detection> &objects) {
         } else {
             track->re_activate(*det, this->frame_id, false);
             refind_stracks.push_back(*track);
+            cout << "refind:"<<track->track_id << endl;
         }
     }
 
@@ -154,8 +156,9 @@ vector<STrack> BYTETracker::update(const vector<Detection> &objects) {
     ////////////////// Step 4: Init new stracks //////////////////
     for (int i = 0; i < u_detection.size(); i++) {
         STrack *track = &detections[u_detection[i]];
-        if (track->score < this->high_thresh)
+        if (track->score < this->high_thresh) {
             continue;
+        }
         track->activate(this->kalman_filter, this->frame_id);
         activated_stracks.push_back(*track);
     }
@@ -163,20 +166,15 @@ vector<STrack> BYTETracker::update(const vector<Detection> &objects) {
     ////////////////// Step 5: Update state //////////////////
     for (int i = 0; i < this->lost_stracks.size(); i++) {
         if (this->lossIds.count(this->lost_stracks[i].track_id)) {
+            std::cout << "exist:" << this->lost_stracks[i].track_id << endl;
             continue;
         }
 
-        if (this->frame_id - this->lost_stracks[i].end_frame() > this->max_time_lost || this->frame_id >= this->frame_count) {
+        if (this->frame_id - this->lost_stracks[i].end_frame() > this->max_time_lost || this->frame_id >= this->frame_count-1) {
             this->lossIds.insert(this->lost_stracks[i].track_id);
 //            std::cout << "lost=" << this->lost_stracks[i].track_id << std::endl;
             this->lost_stracks[i].mark_removed();
             removed_stracks.push_back(this->lost_stracks[i]);
-
-//            static float x1, y1, x2, y2;
-//            x1 = 0;
-//            y1 = -320;
-//            x2 = 1280;
-//            y2 = -400;
 
             // 用下角的点，判断商品拿取,右开门肯定是左下，左开门肯定是右下，取两者最小值能最大限度地判断商品出界
             float xr = this->lost_stracks[i].tlwh[0] + this->lost_stracks[i].tlwh[2];
@@ -194,10 +192,12 @@ vector<STrack> BYTETracker::update(const vector<Detection> &objects) {
                         point_begin.y;
             vector<float> tlbr = this->lost_stracks[i].tlwh;
             vector<float> be_tlbr = this->lost_stracks[i].begin_tlwh;
-//            std::cout << "loss point lineY=" << lineY << " act=" << y << tlbr[0] << "\t" << tlbr[1] << "\t" << tlbr[2]
-//                      << "\t" << tlbr[3] << "\tbegin_y="<< y_begin << std::endl;
+            std::cout << "loss point lineY=" << std::min(yxl, yxr) << " act=" << yb << tlbr[0] << "\t" << tlbr[1] << "\t" << tlbr[2]
+                      << "\t" << tlbr[3] << "\tbegin_y="<< yt_first << std::endl;
             if (yb < std::min(yxl, yxr) && yt_first > std::min(yxr, yxl)) {
                 std::cout << "you loss:" << this->lost_stracks[i].track_id << std::endl;
+            } else{
+                std::cout << "no rule:" << this->lost_stracks[i].track_id << endl;
             }
         }
     }
@@ -233,9 +233,20 @@ vector<STrack> BYTETracker::update(const vector<Detection> &objects) {
     this->lost_stracks.assign(resb.begin(), resb.end());
 
     for (int i = 0; i < this->tracked_stracks.size(); i++) {
+//        std::cout << "activate:" << this->tracked_stracks[i].track_id <<std::endl;
         if (this->tracked_stracks[i].is_activated) {
             output_stracks.push_back(this->tracked_stracks[i]);
         }
     }
+
+
     return output_stracks;
 }
+
+
+
+//    if (this->frame_id >= this->frame_count) {
+//        for (int i = 0; i < this->tracked_stracks.size(); ++i) {
+//            std:cout << "ok="<< this->tracked_stracks[i].track_id<<endl;
+//        }
+//    }

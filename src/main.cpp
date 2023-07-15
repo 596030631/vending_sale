@@ -16,11 +16,14 @@ void Inference(CUDA_ENGINE *cudaEngine, const string &video_path) {
     int total_ms = 0;
     int fps = int(videoCapture.get(CAP_PROP_FPS));
     long nFrame = static_cast<long>(videoCapture.get(CAP_PROP_FRAME_COUNT));
-    BYTETracker tracker(fps, 60, nFrame);
-    vector<STrack> output_stracks;  // 追踪结果集
-    while (char(cv::waitKey(25) != 27) && videoCapture.isOpened() && videoCapture.read(image)) {
+    BYTETracker tracker(fps, 30, nFrame);
+
+    STrack::reset_frame_id(); // 这里进行reset标签序号
+
+    vector<STrack> bt_outputs;  // 追踪结果集
+    while (char(cv::waitKey(100) != 27) && videoCapture.isOpened() && videoCapture.read(image)) {
         auto t_beg = std::chrono::high_resolution_clock::now();
-        output_stracks.clear(); // 每次清空
+        bt_outputs.clear(); // 每次清空
         if (image.empty()) continue;
         num_frames++;
         float scale = 1; // 后面推理会修改
@@ -29,20 +32,25 @@ void Inference(CUDA_ENGINE *cudaEngine, const string &video_path) {
         for (int i = 0; i < res.size(); ++i) {
             getRect(res[i].rect, scale);
         }
-        output_stracks = tracker.update(res);
+        bt_outputs = tracker.update(res);
         cv::line(image, point_begin, point_end, Scalar_<float>(0, 0, 255), 1, LINE_AA, 0);
-        for (int i = 0; i < output_stracks.size(); i++) {
-            vector<float> tlwh = output_stracks[i].tlwh;
-            if (tlwh[2] * tlwh[3] > 20 /*&& !vertical*/) {
-                Scalar s = tracker.get_color(output_stracks[i].track_id);
-                int label_id = output_stracks[i].label_id;
+        for (int i = 0; i < bt_outputs.size(); i++) {
+            vector<float> tlwh = bt_outputs[i].tlwh;
+            cout << "tracker:"<<num_frames<<"/"<<nFrame;
+            for (int j = 0; j < 4; ++j) {
+                cout << "\t"<<tlwh[j];
+            }
+            cout << endl;
+            if (tlwh[2]* tlwh[3] > 20 /*&& !vertical*/) {
+                Scalar s = tracker.get_color(bt_outputs[i].track_id);
+                int label_id = bt_outputs[i].label_id;
                 std::string label = cudaEngine->labels[label_id];
-                std::string text = format("%d", output_stracks[i].track_id) + label;
+                std::string text = format("%d", bt_outputs[i].track_id) + label+ to_string(bt_outputs[i].score);
                 cv::Rect rect;
-                rect.x = output_stracks[i].tlwh[0];
-                rect.y = output_stracks[i].tlwh[1];
-                rect.width = output_stracks[i].tlwh[2];
-                rect.height = output_stracks[i].tlwh[3];
+                rect.x = bt_outputs[i].tlwh[0];
+                rect.y = bt_outputs[i].tlwh[1];
+                rect.width = bt_outputs[i].tlwh[2];
+                rect.height = bt_outputs[i].tlwh[3];
                 drawBboxMsg(image, rect, text);
             }
         }

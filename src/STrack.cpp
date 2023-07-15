@@ -1,7 +1,10 @@
 #include "STrack.h"
 
+int STrack::_count = 0;
+
 STrack::STrack(vector<float> tlwh_, float score, int _label_id)
 {
+    _count = 0;
 	_tlwh.resize(4);
 	_tlwh.assign(tlwh_.begin(), tlwh_.end());
 
@@ -80,8 +83,10 @@ void STrack::re_activate(STrack &new_track, int frame_id, bool new_id)
 	this->is_activated = true;
 	this->frame_id = frame_id;
 	this->score = new_track.score;
-	if (new_id)
-		this->track_id = next_id();
+	if (new_id){
+        this->track_id = next_id();
+    }
+
 }
 
 void STrack::update(STrack &new_track, int frame_id)
@@ -175,8 +180,7 @@ void STrack::mark_removed()
 
 int STrack::next_id()
 {
-	static int _count = 0;
-	_count++;
+    _count++;
 	return _count;
 }
 
@@ -197,4 +201,8 @@ void STrack::multi_predict(vector<STrack*> &stracks, byte_kalman::KalmanFilter &
 		stracks[i]->static_tlwh();
 		stracks[i]->static_tlbr();
 	}
+}
+
+void STrack::reset_frame_id() {
+    _count = 0;
 }

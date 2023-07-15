@@ -12,7 +12,7 @@ enum TrackState {
 
 class STrack {
 public:
-    STrack(vector<float> tlwh_, float score, int _label_id);
+    STrack(vector<float> tlwh_, float score=0, int _label_id=0);
 
     ~STrack();
 
@@ -32,6 +32,8 @@ public:
 
     void mark_removed();
 
+    static int _count;
+
     int next_id();
 
     int end_frame();
@@ -41,6 +43,8 @@ public:
     void re_activate(STrack &new_track, int frame_id, bool new_id = false);
 
     void update(STrack &new_track, int frame_id);
+
+    static void reset_frame_id();
 
 public:
     bool is_activated;
