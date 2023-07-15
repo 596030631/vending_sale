@@ -16,4 +16,4 @@ void NMS(std::vector<Detection>& res, float* output, const float& conf_thresh, c
 
 void drawBbox(cv::Mat& img, std::vector<Detection>& res, float& scale, std::map<int, std::string>& Labels);
 
-void getRect(cv::Mat& img, cv::Rect_<float>*bbox, float& scale);
+void getRect(cv::Rect_<float>&bbox, float& scale);

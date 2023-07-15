@@ -397,7 +397,6 @@ double BYTETracker::lapjv(const vector<vector<float> > &cost, vector<int> &rowso
 			{
 				if (rowsol[i] != -1)
 				{
-					//cout << i << "\t" << rowsol[i] << "\t" << cost_ptr[i][rowsol[i]] << endl;
 					opt += cost_ptr[i][rowsol[i]];
 				}
 			}

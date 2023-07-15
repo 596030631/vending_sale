@@ -29,26 +29,38 @@ using namespace std;
 //}
 
 
-void Inference(CUDA_ENGINE *cudaEngine, const string& video_path) {
+void Inference(CUDA_ENGINE *cudaEngine, const string &video_path) {
 
     cv::Mat image;
 //    cv::VideoCapture videoCapture("rtsp://admin:123456@192.168.31.31/stream0");
     cv::VideoCapture videoCapture(video_path);
-
     int num_frames = 0;
     int total_ms = 0;
-    int img_w = int(videoCapture.get(CAP_PROP_FRAME_WIDTH));
-    int img_h = int(videoCapture.get(CAP_PROP_FRAME_HEIGHT));
     int fps = int(videoCapture.get(CAP_PROP_FPS));
     long nFrame = static_cast<long>(videoCapture.get(CAP_PROP_FRAME_COUNT));
-    BYTETracker tracker(fps, 30);
-    cout << "Total frames: " << nFrame << endl;
+    BYTETracker tracker(fps, 60, nFrame);
+    cout << "Total frames: " << nFrame << "\n--------------------------------------------------------------------------"
+         << endl;
 
-    while (char(cv::waitKey(1) != 27) && videoCapture.isOpened() && videoCapture.read(image)) {
+    // 追踪结果集
+    vector<STrack> output_stracks;
+
+    while (char(cv::waitKey(25) != 27) && videoCapture.isOpened()) {
         auto t_beg = std::chrono::high_resolution_clock::now();
+
+        if (!videoCapture.read(image)) {
+            for (int i = 0; i < output_stracks.size(); ++i) {
+                cout << "最后一帧依旧保留追踪的信息:" << output_stracks[i].track_id << endl;
+            }
+            break;
+        }
+
+        output_stracks.clear(); // 每次清空
+
         if (image.empty()) continue;
 
         num_frames++;
+
 
         float scale = 1; // 后面推理会修改
 
@@ -57,9 +69,10 @@ void Inference(CUDA_ENGINE *cudaEngine, const string& video_path) {
         cudaEngine->do_interface(res, image, scale);
 
         for (int i = 0; i < res.size(); ++i) {
-            getRect(image, &res[i].rect, scale);
+            getRect(res[i].rect, scale);
         }
-        vector<STrack> output_stracks = tracker.update(res);
+
+        output_stracks = tracker.update(res);
 
         cv::line(image, point_begin, point_end, Scalar_<float>(0, 0, 255), 1, LINE_AA, 0);
 
@@ -88,7 +101,6 @@ void Inference(CUDA_ENGINE *cudaEngine, const string& video_path) {
 
         drawBbox(image, res, scale, cudaEngine->labels);
 
-
         cv::imshow("Inference", image);
         auto t_end = std::chrono::high_resolution_clock::now();
         float total_inf = std::chrono::duration<float, std::milli>(t_end - t_beg).count();
@@ -104,37 +116,25 @@ void Inference(CUDA_ENGINE *cudaEngine, const string& video_path) {
     }
 
 
-
 }
 
 
-int main(int argc) {
-
+int main() {
     CUDA_ENGINE *cudaEngine = new CUDA_ENGINE();
-
     _finddata_t fileinfo;
-    string ext = ".mp4";
     std::intptr_t handle = _findfirst("./*.mp4", &fileinfo);
     if (handle == -1) {
         cout << "本地文件查找失败" << endl;
         return -3;
     }
-
     do {
-//        string attr;
-//        if (fileinfo.attrib != _A_SUBDIR) {
-        cout << "file_name=" << fileinfo.name << endl;
-        Inference(cudaEngine, fileinfo.name);
-//        }
-//
-//
+        if (fileinfo.attrib != _A_SUBDIR) {
+            Inference(cudaEngine, fileinfo.name);
+        }
     } while (!_findnext(handle, &fileinfo));
-//
     _findclose(handle);
-
     cv::destroyAllWindows();
-    delete(cudaEngine);
-
+    delete (cudaEngine);
     return 0;
 }
 

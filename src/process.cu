@@ -141,17 +141,15 @@ void NMS(std::vector<Detection>& res, float* output, const float& conf_thresh, c
 	}
 }
 
-void getRect(cv::Mat& img, cv::Rect_<float>*bbox, float& scale) {
-	bbox->x /= scale;
-	bbox->y /= scale;
-	bbox->width /= scale;
-	bbox->height /= scale;
-//	return bbox;
+void getRect(cv::Rect_<float> &bbox, float &scale) {
+	bbox.x /= scale;
+	bbox.y /= scale;
+	bbox.width /= scale;
+	bbox.height /= scale;
 }
 
 void drawBbox(cv::Mat& img, std::vector<Detection>& res, float& scale, std::map<int, std::string>& Labels) {
 	for (size_t j = 0; j < res.size(); j++) {
-//        getRect(img, res[j].rect, scale);
         std::string name = Labels[(int)res[j].label];
 		cv::rectangle(img, res[j].rect, cv::Scalar(0xFF, 0xFF, 0), 1);
 		cv::putText(img, name, cv::Point(int(res[j].rect.x), int(res[j].rect.y - 1)), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar(0xFF, 0xFF, 0), 1);

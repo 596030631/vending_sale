@@ -1,11 +1,11 @@
 #include "BYTETracker.h"
 #include <fstream>
 
-BYTETracker::BYTETracker(int frame_rate, int track_buffer) {
+BYTETracker::BYTETracker(int frame_rate, int track_buffer, int _frame_count) {
     track_thresh = 0.5;
     high_thresh = 0.6;
     match_thresh = 0.8;
-
+    frame_count = _frame_count;
     frame_id = 0;
     max_time_lost = int(frame_rate / 30.0 * track_buffer);
     cout << "Init ByteTrack!" << endl;
@@ -166,7 +166,8 @@ vector<STrack> BYTETracker::update(const vector<Detection> &objects) {
         if (this->lossIds.count(this->lost_stracks[i].track_id)) {
             continue;
         }
-        if (this->frame_id - this->lost_stracks[i].end_frame() > this->max_time_lost) {
+
+        if (this->frame_id - this->lost_stracks[i].end_frame() > this->max_time_lost || this->frame_id >= this->frame_count) {
             this->lossIds.insert(this->lost_stracks[i].track_id);
 //            std::cout << "lost=" << this->lost_stracks[i].track_id << std::endl;
             this->lost_stracks[i].mark_removed();
@@ -178,19 +179,25 @@ vector<STrack> BYTETracker::update(const vector<Detection> &objects) {
 //            x2 = 1280;
 //            y2 = -400;
 
-            float x = this->lost_stracks[i].tlwh[0] + this->lost_stracks[i].tlwh[2] / 2.0f;
-            float y = this->lost_stracks[i].tlwh[1] + this->lost_stracks[i].tlwh[3] / 2.0f;
-            float y_begin = this->lost_stracks[i].begin_tlwh[1] + this->lost_stracks[i].begin_tlwh[3] / 2.0f;
+            // 用下角的点，判断商品拿取,右开门肯定是左下，左开门肯定是右下，取两者最小值能最大限度地判断商品出界
+            float xr = this->lost_stracks[i].tlwh[0] + this->lost_stracks[i].tlwh[2];
+            float xl = this->lost_stracks[i].tlwh[0] + this->lost_stracks[i].tlwh[2];
+            float yb = this->lost_stracks[i].tlwh[1] + this->lost_stracks[i].tlwh[3];
 
-            y = -y;
-            y_begin = -y_begin;
+            float yt_first = this->lost_stracks[i].begin_tlwh[1]; // 取初始位置最上方Y做判断条件
+
+            yb = -yb;
+            yt_first = -yt_first;
             // 两点式求直线, 注意这里对Y轴做了对称，由于数学坐标和YOLO图像坐标X同Y取反
-            float lineY = (x - point_begin.x) / (point_begin.x - point_end.x) * (-point_begin.y + point_end.y) - point_begin.y;
+            float yxl = (xl - point_begin.x) / (point_begin.x - point_end.x) * (-point_begin.y + point_end.y) -
+                        point_begin.y;
+            float yxr = (xr - point_begin.x) / (point_begin.x - point_end.x) * (-point_begin.y + point_end.y) -
+                        point_begin.y;
             vector<float> tlbr = this->lost_stracks[i].tlwh;
             vector<float> be_tlbr = this->lost_stracks[i].begin_tlwh;
 //            std::cout << "loss point lineY=" << lineY << " act=" << y << tlbr[0] << "\t" << tlbr[1] << "\t" << tlbr[2]
 //                      << "\t" << tlbr[3] << "\tbegin_y="<< y_begin << std::endl;
-            if (y < lineY && y_begin>lineY) {
+            if (yb < std::min(yxl, yxr) && yt_first > std::min(yxr, yxl)) {
                 std::cout << "you loss:" << this->lost_stracks[i].track_id << std::endl;
             }
         }
