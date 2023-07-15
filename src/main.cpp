@@ -1,49 +1,19 @@
 #include "model.h"
-#include "utils.h"
 #include <iostream>
 #include "process.h"
 #include "BYTETracker.h"
 #include <opencv2/opencv.hpp>
 #include <fstream>
+#include "io.h"
+#include "cuda_engine.h"
 
 using namespace std;
 
-Logger gLogger;
 //static const int INPUT_W = 640;
 //static const int INPUT_H = 640;
 //const char *INPUT_BLOB_NAME = "input_0";
 //const char *OUTPUT_BLOB_NAME = "output_0";
 
-void serializeEngine(const int &kBatchSize, std::string &wts_name, std::string &engine_name, std::string &sub_type) {
-
-    nvinfer1::IBuilder *builder = nvinfer1::createInferBuilder(gLogger);
-    nvinfer1::IBuilderConfig *config = builder->createBuilderConfig();
-    nvinfer1::IHostMemory *serialized_engine = nullptr;
-
-    if (sub_type == "n") {
-        serialized_engine = buildEngineYolov8n(kBatchSize, builder, config, nvinfer1::DataType::kFLOAT, wts_name);
-    } else if (sub_type == "s") {
-        serialized_engine = buildEngineYolov8s(kBatchSize, builder, config, nvinfer1::DataType::kFLOAT, wts_name);
-    } else if (sub_type == "m") {
-        serialized_engine = buildEngineYolov8m(kBatchSize, builder, config, nvinfer1::DataType::kFLOAT, wts_name);
-    } else if (sub_type == "l") {
-        serialized_engine = buildEngineYolov8l(kBatchSize, builder, config, nvinfer1::DataType::kFLOAT, wts_name);
-    } else if (sub_type == "x") {
-        serialized_engine = buildEngineYolov8x(kBatchSize, builder, config, nvinfer1::DataType::kFLOAT, wts_name);
-    }
-
-    assert(serialized_engine);
-    std::ofstream p(engine_name, std::ios::binary);
-    if (!p) {
-        std::cout << "could not open plan output file" << std::endl;
-        assert(false);
-    }
-    p.write(reinterpret_cast<const char *>(serialized_engine->data()), serialized_engine->size());
-
-    delete builder;
-    delete config;
-    delete serialized_engine;
-}
 
 
 //Mat static_resize(Mat &img) {
@@ -59,34 +29,11 @@ void serializeEngine(const int &kBatchSize, std::string &wts_name, std::string &
 //}
 
 
-void Inference(std::string &engine_name, std::string &class_file) {
-    nvinfer1::IRuntime *runtime = nullptr;
-    nvinfer1::ICudaEngine *engine = nullptr;
-    nvinfer1::IExecutionContext *context = nullptr;
-
-    readEngineFile(engine_name, runtime, engine, context);
-    cudaStream_t stream;
-    cudaStreamCreate(&stream);
-    const int kOutputSize = kMaxNumOutputBbox * sizeof(Detection) / sizeof(float) + 1;
-
-    float *device_buffers[2];
-    uint8_t *image_device = nullptr;
-    auto *output_buffer_host = new float[kBatchSize * kOutputSize];
-    assert(engine->getNbBindings() == 2);
-    const int inputIndex = engine->getBindingIndex(kInputTensorName);
-    const int outputIndex = engine->getBindingIndex(kOutputTensorName);
-    assert(inputIndex == 0);
-    assert(outputIndex == 1);
-    cudaMalloc((void **) &image_device, kMaxInputImageSize * 3);
-    cudaMalloc((void **) &device_buffers[0], kBatchSize * 3 * kInputH * kInputW * sizeof(float));
-    cudaMalloc((void **) &device_buffers[1], kBatchSize * kOutputSize * sizeof(float));
-
-    std::map<int, std::string> labels;
-    readClassFile(class_file, labels);
+void Inference(CUDA_ENGINE *cudaEngine, const string& video_path) {
 
     cv::Mat image;
 //    cv::VideoCapture videoCapture("rtsp://admin:123456@192.168.31.31/stream0");
-    cv::VideoCapture videoCapture("test.mp4");
+    cv::VideoCapture videoCapture(video_path);
 
     int num_frames = 0;
     int total_ms = 0;
@@ -97,43 +44,36 @@ void Inference(std::string &engine_name, std::string &class_file) {
     BYTETracker tracker(fps, 30);
     cout << "Total frames: " << nFrame << endl;
 
-    struct Goods {
-        int id = 0;
-        float rect_begin[4]{0, 0, 0, 0};
-        float rect_end[4]{0, 0, 0, 0};
-    };
-
-    vector<Goods> goods;
-
-
-    while (char(cv::waitKey(30) != 27)) {
+    while (char(cv::waitKey(1) != 27) && videoCapture.isOpened() && videoCapture.read(image)) {
         auto t_beg = std::chrono::high_resolution_clock::now();
-
-        videoCapture >> image;
-
+        cout << 0<<endl;
         if (image.empty()) continue;
-
-        cout << "----------------------" << endl;
 
         num_frames++;
 
         float scale = 640.00f / float(std::min(img_w, img_h));
         int img_size = image.cols * image.rows * 3;
-        cudaMemcpyAsync(image_device, image.data, img_size, cudaMemcpyHostToDevice, stream);
-        preprocess(image_device, image.cols, image.rows, device_buffers[0], kInputW, kInputH, stream, scale);
-        context->enqueue(kBatchSize, (void **) device_buffers, stream, nullptr);
-        cudaMemcpyAsync(output_buffer_host, device_buffers[1], kBatchSize * kOutputSize * sizeof(float),
-                        cudaMemcpyDeviceToHost, stream);
-        cudaStreamSynchronize(stream);
+        cudaMemcpyAsync(cudaEngine->image_device, image.data, img_size, cudaMemcpyHostToDevice, cudaEngine->stream);
+
+        preprocess(cudaEngine->image_device, image.cols, image.rows, cudaEngine->device_buffers[0], kInputW, kInputH, cudaEngine->stream, scale);
+
+        cudaEngine->context->enqueue(BATCH_SIZE, (void **) cudaEngine->device_buffers, cudaEngine->stream, nullptr);
+
+        cudaMemcpyAsync(cudaEngine->output_buffer_host, cudaEngine->device_buffers[1], BATCH_SIZE * cudaEngine->kOutputSize * sizeof(float),
+                        cudaMemcpyDeviceToHost, cudaEngine->stream);
+
+        cudaStreamSynchronize(cudaEngine->stream);
 
         std::vector<Detection> res;
-        NMS(res, output_buffer_host, kConfThresh, kNmsThresh);
+        NMS(res,cudaEngine-> output_buffer_host, kConfThresh, kNmsThresh);
 
         for (int i = 0; i < res.size(); ++i) {
             getRect(image, &res[i].rect, scale);
         }
-
+        cout << 5<<endl;
         vector<STrack> output_stracks = tracker.update(res);
+
+        cv::line(image, point_begin, point_end, Scalar_<float>(0, 0, 255), 1, LINE_AA, 0);
 
 
         for (int i = 0; i < output_stracks.size(); i++) {
@@ -143,16 +83,22 @@ void Inference(std::string &engine_name, std::string &class_file) {
                 putText(image, format("%d", output_stracks[i].track_id), Point(tlwh[0], tlwh[1] - 5),
                         0, 0.6, s, 1, LINE_AA);
 //                    rectangle(img, Rect(tlwh[0], tlwh[1], tlwh[2], tlwh[3]), s, 2);
-                cout << "id=" << output_stracks[i].track_id << "\ttlwh=" << tlwh[0] << " " << tlwh[1] << " " << tlwh[2]
-                     << " " << tlwh[3] << endl;
 
-                float x = (2.0f * tlwh[0] + tlwh[2]) / 2.0f;
-                float y = (2.0f * tlwh[1] + tlwh[3]) / 2.0f;
-                cout << "center=(" << x << "," << y << ") tracked_len="<<output_stracks[i].tracklet_len << endl;
+//                float x = (2.0f * tlwh[0] + tlwh[2]) / 2.0f;
+//                float y = (2.0f * tlwh[1] + tlwh[3]) / 2.0f;
+//
+//                cout << "id=" << output_stracks[i].track_id << "\ttlwh=" << tlwh[0] << " " << tlwh[1] << " " << tlwh[2]
+//                     << " " << tlwh[3] << "center=(" << x << "," << y << ") tracked_len="
+//                     << output_stracks[i].tracklet_len << endl;
+
+
+
+
+//                cout << "out_size" <<  << endl;
             }
         }
 
-        drawBbox(image, res, scale, labels);
+        drawBbox(image, res, scale, cudaEngine->labels);
 
 
         cv::imshow("Inference", image);
@@ -169,33 +115,38 @@ void Inference(std::string &engine_name, std::string &class_file) {
 
     }
 
-    cv::destroyAllWindows();
 
-    // Release stream and buffers
-    cudaStreamDestroy(stream);
-    cudaFree(device_buffers[0]);
-    cudaFree(device_buffers[1]);
-    delete[] output_buffer_host;
-    // Destroy the engine
-    delete context;
-    delete engine;
-    delete runtime;
+
 }
 
 
 int main(int argc) {
-    std::string sub_type = "m";
-    string model_name = "yolov8" + sub_type + "_n1";
-    string wts_name = "../weights/" + model_name + ".wts";
-    string engine_name = "../weights/" + model_name + "_b" + to_string(kBatchSize) + ".engine";
-    string class_file = "../weights/classes1.txt";
 
-    fstream f(engine_name.c_str());
-    if (!f.good()) {
-        serializeEngine(kBatchSize, wts_name, engine_name, sub_type);
-        return 0;
+    CUDA_ENGINE *cudaEngine = new CUDA_ENGINE();
+
+    _finddata_t fileinfo;
+    string ext = ".mp4";
+    std::intptr_t handle = _findfirst("./*.mp4", &fileinfo);
+    if (handle == -1) {
+        cout << "本地文件查找失败" << endl;
+        return -3;
     }
-    Inference(engine_name, class_file);
+
+    do {
+//        string attr;
+//        if (fileinfo.attrib != _A_SUBDIR) {
+        cout << "file_name=" << fileinfo.name << endl;
+        Inference(cudaEngine, fileinfo.name);
+//        }
+//
+//
+    } while (!_findnext(handle, &fileinfo));
+//
+    _findclose(handle);
+
+    cv::destroyAllWindows();
+    delete(cudaEngine);
+
     return 0;
 }
 

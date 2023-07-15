@@ -36,8 +36,8 @@ public:
 
 	vector<float> _tlwh;
 	vector<float> tlwh;
-	vector<float> begin_tlwh;
 	vector<float> tlbr;
+    vector<float> begin_tlwh;
 	int frame_id;
 	int tracklet_len;
 	int start_frame;

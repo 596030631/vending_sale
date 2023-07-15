@@ -43,7 +43,7 @@ add_library(myplugins SHARED ${PROJECT_SOURCE_DIR}/plugin/yololayer.cu)
 target_link_libraries(myplugins nvinfer cudart ${OpenCV_LIBS})
 
 file(GLOB_RECURSE SRCS ${PROJECT_SOURCE_DIR}/src/*.cpp ${PROJECT_SOURCE_DIR}/src/*.cu)
-add_executable(yolov8 ${PROJECT_SOURCE_DIR}/src/main.cpp ${SRCS})
+add_executable(yolov8 ${PROJECT_SOURCE_DIR}/src/main.cpp ${SRCS} src/cuda_engine.cpp include/cuda_engine.h)
 
 target_link_libraries(yolov8 nvinfer)
 target_link_libraries(yolov8 cudart)

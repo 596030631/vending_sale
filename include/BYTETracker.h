@@ -47,4 +47,6 @@ private:
 	vector<STrack> lost_stracks;
 	vector<STrack> removed_stracks;
 	byte_kalman::KalmanFilter kalman_filter;
+    std::set<int> lossIds;
+
 };

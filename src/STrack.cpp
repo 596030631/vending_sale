@@ -11,6 +11,7 @@ STrack::STrack(vector<float> tlwh_, float score)
 	
 	tlwh.resize(4);
 	tlbr.resize(4);
+	begin_tlwh.resize(4);
 
 	static_tlwh();
 	static_tlbr();
@@ -115,7 +116,6 @@ void STrack::static_tlwh()
 		tlwh[1] = _tlwh[1];
 		tlwh[2] = _tlwh[2];
 		tlwh[3] = _tlwh[3];
-
         begin_tlwh[0] = _tlwh[0];
         begin_tlwh[1] = _tlwh[1];
         begin_tlwh[2] = _tlwh[2];

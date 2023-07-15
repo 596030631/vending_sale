@@ -173,7 +173,7 @@ nvinfer1::IPluginV2Layer* addYoLoLayer(nvinfer1::INetworkDefinition *network, st
     auto creator = getPluginRegistry()->getPluginCreator("YoloLayer_TRT", "1");
 
     nvinfer1::PluginField plugin_fields[1];
-    int netinfo[4] = {kNumClass, kInputW, kInputH, kMaxNumOutputBbox};
+    int netinfo[4] = {NUM_CLASSES, kInputW, kInputH, kMaxNumOutputBbox};
     plugin_fields[0].data = netinfo;
     plugin_fields[0].length = 4;
     plugin_fields[0].name = "netinfo";
