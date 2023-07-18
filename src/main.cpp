@@ -16,12 +16,12 @@ void Inference(CUDA_ENGINE *cudaEngine, const string &video_path) {
     int total_ms = 0;
     int fps = int(videoCapture.get(CAP_PROP_FPS));
     long nFrame = static_cast<long>(videoCapture.get(CAP_PROP_FRAME_COUNT));
-    BYTETracker tracker(fps, 5, nFrame);
+    BYTETracker tracker(fps, 60, nFrame);
 
     STrack::reset_frame_id(); // 这里进行reset标签序号
 
     vector<STrack> bt_outputs;  // 追踪结果集
-    while (char(cv::waitKey(10) != 27) && videoCapture.isOpened() && videoCapture.read(image)) {
+    while (char(cv::waitKey(30) != 27) && videoCapture.isOpened() && videoCapture.read(image)) {
         auto t_beg = std::chrono::high_resolution_clock::now();
         bt_outputs.clear(); // 每次清空
         if (image.empty()) continue;

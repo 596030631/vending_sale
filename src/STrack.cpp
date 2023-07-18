@@ -1,10 +1,11 @@
 #include "STrack.h"
 
+#include <utility>
+
 int STrack::_count = 0;
 
 STrack::STrack(vector<float> tlwh_, float score, int _label_id)
 {
-    _count = 0;
 	_tlwh.resize(4);
 	_tlwh.assign(tlwh_.begin(), tlwh_.end());
 
@@ -28,10 +29,10 @@ STrack::~STrack()
 {
 }
 
-void STrack::activate(byte_kalman::KalmanFilter &kalman_filter, int frame_id)
+void STrack::activate(byte_kalman::KalmanFilter &_kalman_filter, int _frame_id)
 {
-	this->kalman_filter = kalman_filter;
-	this->track_id = this->next_id();
+	this->kalman_filter = _kalman_filter;
+	this->track_id = STrack::next_id();
 
 	vector<float> _tlwh_tmp(4);
 	_tlwh_tmp[0] = this->_tlwh[0];
@@ -58,11 +59,11 @@ void STrack::activate(byte_kalman::KalmanFilter &kalman_filter, int frame_id)
 		this->is_activated = true;
 	}
 	//this->is_activated = true;
-	this->frame_id = frame_id;
-	this->start_frame = frame_id;
+	this->frame_id = _frame_id;
+	this->start_frame = _frame_id;
 }
 
-void STrack::re_activate(STrack &new_track, int frame_id, bool new_id)
+void STrack::re_activate(STrack &new_track, int _frame_id, bool new_id)
 {
 	vector<float> xyah = tlwh_to_xyah(new_track.tlwh);
 	DETECTBOX xyah_box;
@@ -80,7 +81,7 @@ void STrack::re_activate(STrack &new_track, int frame_id, bool new_id)
 	this->tracklet_len = 0;
 	this->state = TrackState::Tracked;
 	this->is_activated = true;
-	this->frame_id = frame_id;
+	this->frame_id = _frame_id;
 	this->score = new_track.score;
 	if (new_id){
         this->track_id = next_id();
@@ -88,9 +89,9 @@ void STrack::re_activate(STrack &new_track, int frame_id, bool new_id)
 
 }
 
-void STrack::update(STrack &new_track, int frame_id)
+void STrack::update(STrack &new_track, int _frame_id)
 {
-	this->frame_id = frame_id;
+	this->frame_id = _frame_id;
 	this->tracklet_len++;
 
 	vector<float> xyah = tlwh_to_xyah(new_track.tlwh);
@@ -144,14 +145,14 @@ void STrack::static_tlbr()
 
 vector<float> STrack::tlwh_to_xyah(vector<float> tlwh_tmp)
 {
-	vector<float> tlwh_output = tlwh_tmp;
+	vector<float> tlwh_output = std::move(tlwh_tmp);
 	tlwh_output[0] += tlwh_output[2] / 2;
 	tlwh_output[1] += tlwh_output[3] / 2;
 	tlwh_output[2] /= tlwh_output[3];
 	return tlwh_output;
 }
 
-vector<float> STrack::to_xyah()
+vector<float> STrack::to_xyah() const
 {
 	return tlwh_to_xyah(tlwh);
 }
@@ -175,11 +176,11 @@ void STrack::mark_removed()
 
 int STrack::next_id()
 {
-    _count++;
-	return _count;
+    STrack::_count++;
+    return STrack::_count;
 }
 
-int STrack::end_frame()
+int STrack::end_frame() const
 {
 	return this->frame_id;
 }

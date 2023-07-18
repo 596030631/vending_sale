@@ -12,7 +12,7 @@ enum TrackState {
 
 class STrack {
 public:
-    STrack(vector<float> tlwh_, float score=0, int _label_id=0);
+    explicit STrack(vector<float> tlwh_, float score=0, int _label_id=0);
 
     ~STrack();
 
@@ -24,9 +24,9 @@ public:
 
     void static_tlbr();
 
-    vector<float> tlwh_to_xyah(vector<float> tlwh_tmp);
+    static vector<float> tlwh_to_xyah(vector<float> tlwh_tmp);
 
-    vector<float> to_xyah();
+    vector<float> to_xyah() const;
 
     void mark_lost();
 
@@ -34,9 +34,9 @@ public:
 
     static int _count;
 
-    int next_id();
+    static int next_id();
 
-    int end_frame();
+    int end_frame() const;
 
     void activate(byte_kalman::KalmanFilter &kalman_filter, int frame_id);
 

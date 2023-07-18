@@ -12,7 +12,7 @@
 
 class BYTETracker {
 public:
-    BYTETracker(int frame_rate = 30, int track_buffer = 30, int _frame_count = 0);
+    explicit BYTETracker(int frame_rate = 30, int track_buffer = 30, int max_frame=0);
 
     ~BYTETracker();
 
@@ -27,7 +27,7 @@ private:
 
     vector<STrack> sub_stracks(vector<STrack> &tlista, vector<STrack> &tlistb);
 
-    void BYTETracker::pop_target();
+    void pop_target();
 
     void remove_duplicate_stracks(vector<STrack> &resa, vector<STrack> &resb, vector<STrack> &stracksa,
                                   vector<STrack> &stracksb);
@@ -53,7 +53,7 @@ private:
     float match_thresh;
     int frame_id;
     int max_time_lost;
-    int frame_count; // 最大帧数，用于召回中止点没有连续丢失的目标
+    int frame_count; // 最大帧数,用于最后跟踪点结算
 
     vector<STrack> tracked_stracks;
     vector<STrack> lost_stracks;
